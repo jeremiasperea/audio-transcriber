@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Audio Transcriber"]
 description = "Transcripción offline de audios a MD/TXT usando Whisper.cpp"
 readme = "README.md"
-repository = "https://github.com/tu-usuario/audio-transcriber"
+repository = "https://github.com/jeremiasperea/audio-transcriber"
 
 [[bin]]
 name = "audio-transcriber"
