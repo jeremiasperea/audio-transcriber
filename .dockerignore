@@ -1,0 +1,11 @@
+target/
+.git
+.gitignore
+README.md
+graphify-out/
+models/
+.vscode/
+.idea/
+*.swp
+*~
+Cargo.lock

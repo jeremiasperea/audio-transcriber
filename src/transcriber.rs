@@ -4,6 +4,7 @@
 use std::path::Path;
 use std::fs;
 use std::io::Read;
+use std::process::Command;
 use whisper_rs::{WhisperContext, WhisperContextParameters, FullParams, SamplingStrategy};
 use crate::error::AppError;
 
@@ -157,12 +158,15 @@ impl Transcriber {
 /// Valida que el archivo del modelo sea GGML válido.
 /// Verifica: (1) existe y es legible, (2) mínimo 1 MB, (3) magic GGML en header.
 fn validate_model_file(path: &Path) -> Result<(), AppError> {
-    // Verificar que el archivo existe
+    // Verificar que el archivo existe — si no, intentar descargar automáticamente
     if !path.exists() {
-        return Err(AppError::ModelError(format!(
-            "El modelo no existe: {}",
-            path.display()
-        )));
+        eprintln!("⚠️  Modelo no encontrado: {}", path.display());
+        if try_auto_download_model(path).is_err() {
+            return Err(AppError::ModelError(format!(
+                "El modelo no existe: {}\nDescárgalo con: ./scripts/download_model.sh base",
+                path.display()
+            )));
+        }
     }
 
     // Verificar tamaño mínimo (1 MB)
@@ -191,6 +195,42 @@ fn validate_model_file(path: &Path) -> Result<(), AppError> {
     }
 
     Ok(())
+}
+
+/// Intenta descargar el modelo automáticamente si el script existe.
+/// Detecta si es "base" del path y lo descarga.
+fn try_auto_download_model(path: &Path) -> Result<(), AppError> {
+    let script = Path::new("./scripts/download_model.sh");
+    if !script.exists() {
+        return Err(AppError::ModelError("Script de descarga no encontrado".into()));
+    }
+
+    // Extraer nombre del modelo (e.g., "models/ggml-base.bin" → "base")
+    let model_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .and_then(|s| s.strip_prefix("ggml-").and_then(|s| s.strip_suffix(".bin")))
+        .unwrap_or("base");
+
+    eprintln!("📥 Descargando modelo '{}'...", model_name);
+    let output = Command::new("bash")
+        .arg(script)
+        .arg(model_name)
+        .output()
+        .map_err(|e| AppError::ModelError(format!("Error ejecutando descarga: {}", e)))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::ModelError(format!("Descarga fallida: {}", stderr)));
+    }
+
+    // Verificar que ahora existe
+    if path.exists() {
+        eprintln!("✅ Modelo descargado correctamente");
+        Ok(())
+    } else {
+        Err(AppError::ModelError("Descarga completada pero el archivo no se encontró".into()))
+    }
 }
 
 /// Mapeo de ID numérico de Whisper a código de idioma

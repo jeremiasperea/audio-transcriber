@@ -93,6 +93,22 @@ El binario quedará en `target/release/audio-transcriber`.
 cargo install --path .
 ```
 
+### 5. (Alternativa) Usar Docker
+
+```bash
+# Construir imagen
+docker build -t audio-transcriber .
+
+# Ejecutar (sin modelo preinstalado, se descarga en primer uso)
+docker run -v /ruta/a/audios:/audio audio-transcriber entrevista.mp3 -m models/ggml-base.bin
+
+# Con modelo persistente en volumen
+docker volume create whisper-models
+docker run -v /ruta/a/audios:/audio -v whisper-models:/app/models audio-transcriber entrevista.mp3
+```
+
+El contenedor descargará automáticamente el modelo si no existe.
+
 ---
 
 ## 💻 Uso
