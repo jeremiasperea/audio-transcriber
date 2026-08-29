@@ -1,0 +1,47 @@
+[package]
+name = "audio-transcriber"
+version = "1.0.0"
+edition = "2021"
+authors = ["Audio Transcriber"]
+description = "Transcripción offline de audios a MD/TXT usando Whisper.cpp"
+readme = "README.md"
+repository = "https://github.com/tu-usuario/audio-transcriber"
+
+[[bin]]
+name = "audio-transcriber"
+path = "src/main.rs"
+
+[dependencies]
+# CLI argument parsing
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Bindings a whisper.cpp (inferencia local, 100% offline)
+whisper-rs = { version = "0.11", features = ["whisper-cpp-log"] }
+
+# Decodificación de formatos de audio
+symphonia = { version = "0.5", features = ["all"] }
+
+# Conversión de audio a PCM f32 requerido por Whisper
+rubato = "0.15"
+
+# Colores en terminal
+colored = "2.1"
+
+# Barra de progreso
+indicatif = "0.17"
+
+# Fecha/hora para metadatos
+chrono = { version = "0.4", features = ["clock"] }
+
+# Serialización (para leer respuesta de whisper-rs)
+serde = { version = "1.0", features = ["derive"] }
+
+# Manejo de errores ergonómico
+anyhow = "1.0"
+thiserror = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
