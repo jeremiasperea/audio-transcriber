@@ -3,6 +3,7 @@ mod transcriber;
 mod output;
 mod error;
 mod utils;
+mod download;
 
 use std::path::{Path, PathBuf};
 use clap::{Parser, ValueEnum};
@@ -33,7 +34,7 @@ struct Args {
 
     /// Ruta al modelo Whisper (.bin)
     #[arg(short, long, default_value = "models/ggml-base.bin",
-          help = "Modelo Whisper GGML. Descárgalo con: ./scripts/download_model.sh")]
+          help = "Modelo Whisper GGML (auto-descarga si no existe: tiny, base, small, medium, large-v3)")]
     model: PathBuf,
 
     /// Formato de salida
@@ -93,18 +94,6 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     print_banner();
-
-    // Validar modelo
-    if !args.model.exists() {
-        eprintln!(
-            "\n{} El modelo no existe: {}\n{} Ejecuta: {}\n",
-            "❌".red(),
-            args.model.display().to_string().yellow(),
-            "💡 Tip:".cyan(),
-            "./scripts/download_model.sh".green().bold()
-        );
-        std::process::exit(1);
-    }
 
     // Filtrar archivos válidos
     let valid_files: Vec<&PathBuf> = args.input.iter()

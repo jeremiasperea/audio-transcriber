@@ -4,9 +4,9 @@
 use std::path::Path;
 use std::fs;
 use std::io::Read;
-use std::process::Command;
 use whisper_rs::{WhisperContext, WhisperContextParameters, FullParams, SamplingStrategy};
 use crate::error::{AppError, Result};
+use crate::download::ensure_model;
 
 /// Resultado de transcripción con texto y segmentos opcionales
 pub struct TranscriptionResult {
@@ -53,11 +53,12 @@ pub struct Transcriber {
 }
 
 impl Transcriber {
-    /// Carga el modelo GGML desde disco con validación de integridad básica.
+    /// Carga el modelo GGML desde disco, descargándolo automáticamente si no existe.
     pub fn new(model_path: &Path, threads: usize) -> Result<Self> {
-        validate_model_file(model_path)?;
+        // Asegurar que el modelo existe (descarga si necesario)
+        let resolved_path = ensure_model_from_path(model_path)?;
 
-        let path_str = model_path.to_str()
+        let path_str = resolved_path.to_str()
             .ok_or_else(|| AppError::ModelError("Ruta de modelo inválida".into()))?;
 
         let ctx = WhisperContext::new_with_params(
@@ -155,82 +156,15 @@ impl Transcriber {
     }
 }
 
-/// Valida que el archivo del modelo sea GGML válido.
-/// Verifica: (1) existe y es legible, (2) mínimo 1 MB, (3) magic GGML en header.
-fn validate_model_file(path: &Path) -> Result<()> {
-    // Verificar que el archivo existe — si no, intentar descargar automáticamente
-    if !path.exists() {
-        eprintln!("⚠️  Modelo no encontrado: {}", path.display());
-        if try_auto_download_model(path).is_err() {
-            return Err(AppError::ModelError(format!(
-                "El modelo no existe: {}\nDescárgalo con: ./scripts/download_model.sh base",
-                path.display()
-            )));
-        }
-    }
-
-    // Verificar tamaño mínimo (1 MB)
-    let metadata = fs::metadata(path)
-        .map_err(|e| AppError::ModelError(format!("No se pudo leer el modelo: {}", e)))?;
-
-    if metadata.len() < 1_000_000 {
-        return Err(AppError::ModelError(
-            "El modelo parece corrupto o incompleto (< 1 MB). Volvé a descargarlo.".into()
-        ));
-    }
-
-    // Verificar magic GGML en los primeros 4 bytes
-    let mut file = fs::File::open(path)
-        .map_err(|e| AppError::ModelError(format!("No se pudo abrir el modelo: {}", e)))?;
-
-    let mut magic = [0u8; 4];
-    file.read_exact(&mut magic)
-        .map_err(|e| AppError::ModelError(format!("No se pudo leer header del modelo: {}", e)))?;
-
-    // GGML magic: 0x67, 0x67, 0x6D, 0x6C ("GGML" en ASCII)
-    if &magic != b"GGML" {
-        return Err(AppError::ModelError(
-            "El modelo no tiene formato GGML válido o está corrupto. Volvé a descargarlo.".into()
-        ));
-    }
-
-    Ok(())
-}
-
-/// Intenta descargar el modelo automáticamente si el script existe.
-/// Detecta si es "base" del path y lo descarga.
-fn try_auto_download_model(path: &Path) -> Result<()> {
-    let script = Path::new("./scripts/download_model.sh");
-    if !script.exists() {
-        return Err(AppError::ModelError("Script de descarga no encontrado".into()));
-    }
-
-    // Extraer nombre del modelo (e.g., "models/ggml-base.bin" → "base")
+/// Valida y asegura que el modelo existe (descarga si necesario).
+/// Extrae el nombre del modelo del path (e.g., "models/ggml-base.bin" → "base")
+fn ensure_model_from_path(path: &Path) -> Result<std::path::PathBuf> {
     let model_name = path
         .file_name()
         .and_then(|n| n.to_str())
         .and_then(|s| s.strip_prefix("ggml-").and_then(|s| s.strip_suffix(".bin")))
         .unwrap_or("base");
-
-    eprintln!("📥 Descargando modelo '{}'...", model_name);
-    let output = Command::new("bash")
-        .arg(script)
-        .arg(model_name)
-        .output()
-        .map_err(|e| AppError::ModelError(format!("Error ejecutando descarga: {}", e)))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(AppError::ModelError(format!("Descarga fallida: {}", stderr)));
-    }
-
-    // Verificar que ahora existe
-    if path.exists() {
-        eprintln!("✅ Modelo descargado correctamente");
-        Ok(())
-    } else {
-        Err(AppError::ModelError("Descarga completada pero el archivo no se encontró".into()))
-    }
+    ensure_model(model_name)
 }
 
 /// Mapeo de ID numérico de Whisper a código de idioma
