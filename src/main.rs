@@ -12,7 +12,7 @@ use anyhow::Result;
 
 use crate::transcriber::Transcriber;
 use crate::output::OutputWriter;
-use crate::error::AppError;
+use crate::error::{AppError, Result};
 
 // ─────────────────────────────────────────────
 //  CLI
@@ -191,7 +191,7 @@ fn process_file(
     transcriber: &Transcriber,
     args: &Args,
     progress: Option<&ProgressBar>,
-) -> Result<PathBuf, AppError> {
+) -> Result<PathBuf> {
 
     // 1. Decodificar audio → PCM f32 mono 16 kHz
     if let Some(pb) = progress {

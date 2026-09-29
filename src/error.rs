@@ -19,3 +19,6 @@ pub enum AppError {
     #[error("Error de I/O: {0}")]
     IoError(#[from] std::io::Error),
 }
+
+/// Type alias conveniente para `Result<T, AppError>` en todo el crate.
+pub type Result<T> = std::result::Result<T, AppError>;

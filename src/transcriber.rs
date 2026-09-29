@@ -6,7 +6,7 @@ use std::fs;
 use std::io::Read;
 use std::process::Command;
 use whisper_rs::{WhisperContext, WhisperContextParameters, FullParams, SamplingStrategy};
-use crate::error::AppError;
+use crate::error::{AppError, Result};
 
 /// Resultado de transcripción con texto y segmentos opcionales
 pub struct TranscriptionResult {
@@ -54,7 +54,7 @@ pub struct Transcriber {
 
 impl Transcriber {
     /// Carga el modelo GGML desde disco con validación de integridad básica.
-    pub fn new(model_path: &Path, threads: usize) -> Result<Self, AppError> {
+    pub fn new(model_path: &Path, threads: usize) -> Result<Self> {
         validate_model_file(model_path)?;
 
         let path_str = model_path.to_str()
@@ -75,7 +75,7 @@ impl Transcriber {
         pcm: &[f32],
         language: Option<&str>,
         include_timestamps: bool,
-    ) -> Result<TranscriptionResult, AppError> {
+    ) -> Result<TranscriptionResult> {
 
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
 
@@ -157,7 +157,7 @@ impl Transcriber {
 
 /// Valida que el archivo del modelo sea GGML válido.
 /// Verifica: (1) existe y es legible, (2) mínimo 1 MB, (3) magic GGML en header.
-fn validate_model_file(path: &Path) -> Result<(), AppError> {
+fn validate_model_file(path: &Path) -> Result<()> {
     // Verificar que el archivo existe — si no, intentar descargar automáticamente
     if !path.exists() {
         eprintln!("⚠️  Modelo no encontrado: {}", path.display());
@@ -199,7 +199,7 @@ fn validate_model_file(path: &Path) -> Result<(), AppError> {
 
 /// Intenta descargar el modelo automáticamente si el script existe.
 /// Detecta si es "base" del path y lo descarga.
-fn try_auto_download_model(path: &Path) -> Result<(), AppError> {
+fn try_auto_download_model(path: &Path) -> Result<()> {
     let script = Path::new("./scripts/download_model.sh");
     if !script.exists() {
         return Err(AppError::ModelError("Script de descarga no encontrado".into()));

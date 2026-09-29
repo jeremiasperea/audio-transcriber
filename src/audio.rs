@@ -10,12 +10,12 @@ use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
 
-use crate::error::AppError;
+use crate::error::{AppError, Result};
 
 const TARGET_SAMPLE_RATE: u32 = 16_000;
 
 /// Decodifica un archivo de audio a PCM f32, mono, 16 kHz.
-pub fn decode_to_pcm(path: &Path) -> Result<Vec<f32>, AppError> {
+pub fn decode_to_pcm(path: &Path) -> Result<Vec<f32>> {
     // Abrir archivo
     let file = std::fs::File::open(path)
         .map_err(|e| AppError::AudioDecodeError(format!("No se pudo abrir '{}': {}", path.display(), e)))?;
@@ -95,7 +95,7 @@ pub fn decode_to_pcm(path: &Path) -> Result<Vec<f32>, AppError> {
 // ─── Helpers ────────────────────────────────
 
 /// Convierte AudioBufferRef a Vec<f32> intercalado en rango [-1.0, 1.0]
-fn audio_buf_to_f32(buf: &AudioBufferRef<'_>) -> Result<Vec<f32>, AppError> {
+fn audio_buf_to_f32(buf: &AudioBufferRef<'_>) -> Result<Vec<f32>> {
     match buf {
         AudioBufferRef::F32(b) => {
             let frames = b.frames();
@@ -180,7 +180,7 @@ fn interleaved_to_mono(samples: &[f32], channels: usize) -> Vec<f32> {
 }
 
 /// Resamplea de src_rate a dst_rate usando interpolación Sinc de alta calidad
-fn resample(samples: Vec<f32>, src_rate: u32, dst_rate: u32) -> Result<Vec<f32>, AppError> {
+fn resample(samples: Vec<f32>, src_rate: u32, dst_rate: u32) -> Result<Vec<f32>> {
     let ratio = dst_rate as f64 / src_rate as f64;
 
     let params = SincInterpolationParameters {

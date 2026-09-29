@@ -4,7 +4,7 @@ use std::path::Path;
 use std::fs;
 use chrono::Local;
 use crate::transcriber::TranscriptionResult;
-use crate::error::AppError;
+use crate::error::{AppError, Result};
 use crate::utils::format_duration;
 
 pub struct OutputWriter<'a> {
@@ -24,7 +24,7 @@ impl<'a> OutputWriter<'a> {
         &self,
         out_path: &Path,
         result: &TranscriptionResult,
-    ) -> Result<(), AppError> {
+    ) -> Result<()> {
         let mut md = String::new();
 
         let filename = self.source_path
@@ -113,7 +113,7 @@ impl<'a> OutputWriter<'a> {
         &self,
         out_path: &Path,
         result: &TranscriptionResult,
-    ) -> Result<(), AppError> {
+    ) -> Result<()> {
         let mut txt = String::new();
 
         let filename = self.source_path
