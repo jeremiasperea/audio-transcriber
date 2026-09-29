@@ -1,4 +1,5 @@
 use std::path::Path;
+use audio_transcriber::utils::format_duration;
 
 #[test]
 fn test_ms_to_hms_zero() {
@@ -32,7 +33,7 @@ fn test_ms_to_hms_hours() {
 fn test_format_duration_seconds() {
     let secs = 45.0;
     let result = format_duration(secs);
-    assert_eq!(result, "00m 45s");
+    assert_eq!(result, "45s");
 }
 
 #[test]
@@ -114,18 +115,6 @@ fn format_ms_to_hms(ms: i64) -> String {
     let mins = (total_secs / 60) % 60;
     let hours = total_secs / 3600;
     format!("{:02}:{:02}:{:02}.{:03}", hours, mins, secs, millis)
-}
-
-fn format_duration(secs: f64) -> String {
-    let total = secs as u64;
-    let h = total / 3600;
-    let m = (total % 3600) / 60;
-    let s = total % 60;
-    if h > 0 {
-        format!("{}h {:02}m {:02}s", h, m, s)
-    } else {
-        format!("{:02}m {:02}s", m, s)
-    }
 }
 
 fn interleaved_to_mono(samples: &[f32], channels: usize) -> Vec<f32> {

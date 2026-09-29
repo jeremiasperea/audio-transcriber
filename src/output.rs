@@ -5,6 +5,7 @@ use std::fs;
 use chrono::Local;
 use crate::transcriber::TranscriptionResult;
 use crate::error::AppError;
+use crate::utils::format_duration;
 
 pub struct OutputWriter<'a> {
     source_path: &'a Path,
@@ -169,19 +170,5 @@ impl<'a> OutputWriter<'a> {
             .map_err(|e| AppError::IoError(e))?;
 
         Ok(())
-    }
-}
-
-// ─── Helpers ────────────────────────────────────
-
-fn format_duration(secs: f64) -> String {
-    let total = secs as u64;
-    let h = total / 3600;
-    let m = (total % 3600) / 60;
-    let s = total % 60;
-    if h > 0 {
-        format!("{}h {:02}m {:02}s", h, m, s)
-    } else {
-        format!("{:02}m {:02}s", m, s)
     }
 }

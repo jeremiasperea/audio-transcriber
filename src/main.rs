@@ -2,6 +2,7 @@ mod audio;
 mod transcriber;
 mod output;
 mod error;
+mod utils;
 
 use std::path::{Path, PathBuf};
 use clap::{Parser, ValueEnum};
@@ -200,7 +201,7 @@ fn process_file(
 
     // Calcular duración estimada
     let duration_secs = pcm.len() as f64 / 16_000.0;
-    let duration_str = format_duration(duration_secs);
+    let duration_str = crate::utils::format_duration(duration_secs);
 
     // 2. Transcribir con Whisper
     if let Some(pb) = progress {
@@ -238,19 +239,7 @@ fn process_file(
     Ok(out_path)
 }
 
-fn format_duration(secs: f64) -> String {
-    let total = secs as u64;
-    let h = total / 3600;
-    let m = (total % 3600) / 60;
-    let s = total % 60;
-    if h > 0 {
-        format!("{}h {:02}m", h, m)
-    } else if m > 0 {
-        format!("{:02}m", m)
-    } else {
-        format!("{:02}s", s)
-    }
-}
+
 
 fn print_banner() {
     println!("\n{}", "╔════════════════════════════════════════════╗".cyan());
