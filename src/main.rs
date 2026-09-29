@@ -10,7 +10,7 @@ use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use anyhow::Result;
 
-use crate::transcriber::Transcriber;
+use crate::transcriber::{Transcriber, TranscriptionResult};
 use crate::output::OutputWriter;
 use crate::error::{AppError, Result};
 
@@ -183,7 +183,92 @@ fn main() -> Result<()> {
 }
 
 // ─────────────────────────────────────────────
-//  Procesamiento individual
+//  Pipeline — Orquestación testeable del flujo
+// ─────────────────────────────────────────────
+
+/// Pipeline encapsula los pasos de transcripción para testabilidad.
+/// Cada método es una unidad testeable independientemente.
+pub struct Pipeline<'a> {
+    transcriber: &'a Transcriber,
+    args: &'a Args,
+    progress: Option<&'a ProgressBar>,
+}
+
+impl<'a> Pipeline<'a> {
+    /// Crea un nuevo pipeline con las dependencias necesarias.
+    pub fn new(
+        transcriber: &'a Transcriber,
+        args: &'a Args,
+        progress: Option<&'a ProgressBar>,
+    ) -> Self {
+        Self { transcriber, args, progress }
+    }
+
+    /// Paso 1: Decodifica audio a PCM f32 mono 16 kHz.
+    pub fn decode(&self, input: &Path) -> Result<Vec<f32>> {
+        if let Some(pb) = self.progress {
+            pb.set_message("Decodificando audio…");
+        }
+        audio::decode_to_pcm(input)
+    }
+
+    /// Paso 2: Transcribe PCM a texto con Whisper.
+    pub fn transcribe(&self, pcm: &[f32]) -> Result<TranscriptionResult> {
+        let duration_secs = pcm.len() as f64 / 16_000.0;
+        let duration_str = crate::utils::format_duration(duration_secs);
+
+        if let Some(pb) = self.progress {
+            pb.set_message(format!("Transcribiendo ({})…", duration_str));
+        }
+        self.transcriber.transcribe(
+            pcm,
+            self.args.language.as_deref(),
+            self.args.timestamps,
+        )
+    }
+
+    /// Paso 3: Calcula la ruta de salida basada en input y args.
+    pub fn output_path(&self, input: &Path) -> Result<PathBuf> {
+        let stem = input.file_stem().unwrap_or_default().to_string_lossy().to_string();
+        let ext = match self.args.format {
+            OutputFormat::Md => "md",
+            OutputFormat::Txt => "txt",
+        };
+
+        let out_dir = if let Some(ref d) = self.args.output_dir {
+            std::fs::create_dir_all(d)?;
+            d.clone()
+        } else {
+            input.parent().unwrap_or(Path::new(".")).to_path_buf()
+        };
+
+        Ok(out_dir.join(format!("{}.{}", stem, ext)))
+    }
+
+    /// Paso 4: Escribe el resultado a disco.
+    pub fn write(&self, out_path: &Path, result: &TranscriptionResult, input: &Path) -> Result<()> {
+        if let Some(pb) = self.progress {
+            pb.set_message("Escribiendo archivo…");
+        }
+        let writer = OutputWriter::new(input, self.args.language.as_deref(), self.args.timestamps);
+        match self.args.format {
+            OutputFormat::Md  => writer.write_md(out_path, result),
+            OutputFormat::Txt => writer.write_txt(out_path, result),
+        }
+    }
+
+    /// Ejecuta el pipeline completo (mantiene compatibilidad con API anterior).
+    pub fn run(&self, input: &Path) -> Result<PathBuf> {
+        let pcm = self.decode(input)?;
+        let result = self.transcribe(&pcm)?;
+        let out_path = self.output_path(input)?;
+        self.write(&out_path, &result, input)?;
+        Ok(out_path)
+    }
+}
+
+// ─────────────────────────────────────────────
+//  Procesamiento individual (legacy wrapper)
 // ─────────────────────────────────────────────
 
 fn process_file(
@@ -192,51 +277,7 @@ fn process_file(
     args: &Args,
     progress: Option<&ProgressBar>,
 ) -> Result<PathBuf> {
-
-    // 1. Decodificar audio → PCM f32 mono 16 kHz
-    if let Some(pb) = progress {
-        pb.set_message("Decodificando audio…");
-    }
-    let pcm = audio::decode_to_pcm(input)?;
-
-    // Calcular duración estimada
-    let duration_secs = pcm.len() as f64 / 16_000.0;
-    let duration_str = crate::utils::format_duration(duration_secs);
-
-    // 2. Transcribir con Whisper
-    if let Some(pb) = progress {
-        pb.set_message(format!("Transcribiendo ({})…", duration_str));
-    }
-    let result = transcriber.transcribe(
-        &pcm,
-        args.language.as_deref(),
-        args.timestamps,
-    )?;
-
-    // 3. Calcular ruta de salida
-    let stem = input.file_stem().unwrap_or_default().to_string_lossy().to_string();
-    let ext  = match args.format { OutputFormat::Md => "md", OutputFormat::Txt => "txt" };
-
-    let out_dir = if let Some(ref d) = args.output_dir {
-        std::fs::create_dir_all(d)?;
-        d.clone()
-    } else {
-        input.parent().unwrap_or(Path::new(".")).to_path_buf()
-    };
-
-    let out_path = out_dir.join(format!("{}.{}", stem, ext));
-
-    // 4. Escribir
-    if let Some(pb) = progress {
-        pb.set_message("Escribiendo archivo…");
-    }
-    let writer = OutputWriter::new(input, args.language.as_deref(), args.timestamps);
-    match args.format {
-        OutputFormat::Md  => writer.write_md(&out_path, &result)?,
-        OutputFormat::Txt => writer.write_txt(&out_path, &result)?,
-    }
-
-    Ok(out_path)
+    Pipeline::new(transcriber, args, progress).run(input)
 }
 
 
